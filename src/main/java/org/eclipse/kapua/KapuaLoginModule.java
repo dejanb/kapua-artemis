@@ -29,6 +29,7 @@ public class KapuaLoginModule implements LoginModule {
     }
 
     public boolean commit() throws LoginException {
+        //TODO login non-mqtt connections
         return true;
     }
 

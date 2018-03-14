@@ -13,6 +13,7 @@ package org.eclipse.kapua;
 import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQExceptionType;
 import org.apache.activemq.artemis.api.core.Message;
+import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.transaction.Transaction;
@@ -37,10 +38,14 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
         String clientId = session.getRemotingConnection().getClientID();
         logger.debug("Created a session: " + session);
         try {
-            String accessToken = authenticationService.login(session.getUsername(), session.getPassword(), session.getRemotingConnection().getClientID());
-            logger.info("Device " + clientId + " authenticated ");
-            session.addMetaData("kapua-access-token", accessToken);
-            deviceConnectionService.connect(clientId, session.getRemotingConnection().getRemoteAddress(), session.getRemotingConnection().getProtocolName());
+            if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
+                String accessToken = authenticationService.login(session.getUsername(), session.getPassword(), session.getRemotingConnection().getClientID());
+                logger.info("Device " + clientId + " authenticated ");
+                session.addMetaData("kapua-access-token", accessToken);
+                deviceConnectionService.connect(clientId, session.getRemotingConnection().getRemoteAddress(), session.getRemotingConnection().getProtocolName());
+            } else {
+                logger.info("Skipping logging for non-mqtt connections: " + session.getRemotingConnection().getProtocolName());
+            }
         } catch (Exception e) {
             logger.warn("Error connecting a device", e);
             throw new ActiveMQException("Error connecting a device", e, ActiveMQExceptionType.DISCONNECTED);
@@ -60,6 +65,7 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
     }
 
     public void beforeSend(ServerSession session, Transaction tx, Message message, boolean direct, boolean noAutoCreateQueue) throws ActiveMQException {
-        logger.info("sending " + session.getConnectionID() + " " + session.getRemotingConnection().getClientID());
+        logger.info("sending " + session.getMetaData("kapua-access-token") + " " + session.getRemotingConnection().getClientID());
+        message.setAnnotation(new SimpleString("kapua_access_token"), session.getMetaData("kapua-access-token"));
     }
 }
