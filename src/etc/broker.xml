@@ -209,6 +209,10 @@
 
         </addresses>
 
+        <wildcard-addresses>
+            <delimiter>/</delimiter>
+        </wildcard-addresses>
+
 
         <!-- Uncomment the following if you want to use the Standard LoggingActiveMQServerPlugin pluging to log in events
         <broker-plugins>

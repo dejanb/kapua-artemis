@@ -29,18 +29,19 @@ import org.junit.Test;
 
 import javax.jms.Connection;
 import javax.jms.Destination;
-import javax.jms.JMSException;
 import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
 import javax.jms.Session;
-import javax.jms.TextMessage;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.*;
 
 public class MQTTTest {
 
@@ -64,7 +65,7 @@ public class MQTTTest {
     }
 
     @Test
-    public void testConnect() throws Exception {
+    public void testDeviceConnect() throws Exception {
         DefaultMqttListener listener = new DefaultMqttListener();
         MqttClient client = connect(listener);
 
@@ -72,7 +73,7 @@ public class MQTTTest {
 
         logger.info(DeviceConnectionService.getInstance().getConnectedDevices().keySet());
 
-        Assert.assertNotNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
+        assertNotNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
 
         client.disconnect();
 
@@ -80,49 +81,103 @@ public class MQTTTest {
 
         logger.info("Disconnected");
 
-        Assert.assertNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
+        assertNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
     }
 
-    //test failed
-
-    //test connect/distrupt
-
-    //test send message mqtt->jms (header)
     @Test
+    public void testDeviceDisconnect() throws Exception {
+        DefaultMqttListener listener = new DefaultMqttListener();
+        MqttClient client = connect(listener);
+
+        Thread.sleep(1000);
+
+        logger.info(DeviceConnectionService.getInstance().getConnectedDevices().keySet());
+
+        assertNotNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
+
+        client.disconnectForcibly(0, 0, false);
+
+        Thread.sleep(1000);
+
+        logger.info("Disconnected");
+
+        assertNull(DeviceConnectionService.getInstance().getConnectedDevices().get("kapua-device1"));
+    }
+
+    @Test
+    public void testDeviceFailedConnect() throws Exception {
+        boolean failed = false;
+        MqttClient client = null;
+        try {
+            client = new MqttClient("tcp://0.0.0.0:1883", "unknown-device1", new MemoryPersistence());
+            MqttConnectOptions opts = new MqttConnectOptions();
+            opts.setUserName("unknown-device1");
+            opts.setPassword("kapua-password".toCharArray());
+            client.connect(opts);
+        } catch (Exception e) {
+            failed = true;
+            logger.info("Failed login: " + e.getMessage());
+        }
+
+        if (!failed) {
+            Assert.fail("Should have failed login");
+        }
+
+        assertFalse(client.isConnected());
+        assertEquals(0, DeviceConnectionService.getInstance().getConnectedDevices().size());
+    }
+
+    //test send to the wrong path
+
+    //test c&c
+
+    //test jms auth
+
+/*    @Test
     public void testSendMqttToMqtt() throws Exception {
 
         DefaultMqttListener listener = new DefaultMqttListener();
         MqttClient client = connect(listener);
 
-        client.subscribe("telemetry/test");
+        client.subscribe("telemetry/DEFAULT_TENANT");
 
-        client.publish("telemetry/test", "Test".getBytes(), 0, false);
+        client.publish("t/DEFAULT_TENANT/kapua-device1", "Test".getBytes(), 0, false);
 
         Thread.sleep(1000);
         Assert.assertTrue(listener.received.get() == 1);
 
-    }
+    }*/
 
     @Test
-    public void testSendMqttToJMS() throws Exception {
+    public void testTelemetry() throws Exception {
 
-        JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:5672");
+        JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:5672?jms.validatePropertyNames=false");
         Connection connection = cf.createConnection("admin", "admin");
         connection.start();
         Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        MessageConsumer consumer = session.createConsumer(session.createTopic("telemetry.test"));
+        //TODO use "telemetry/DEFAULT_TENANT" address
+        MessageConsumer consumer = session.createConsumer(session.createTopic("t/DEFAULT_TENANT/kapua-device1"));
         DefaultJmsListener listener = new DefaultJmsListener();
         consumer.setMessageListener(listener);
 
         MqttClient client = connect(null);
-        client.publish("telemetry/test", "Test".getBytes(), 0, false);
+        client.publish("t/DEFAULT_TENANT/kapua-device1", "Test".getBytes(), 0, false);
 
         Thread.sleep(1000);
 
         Assert.assertTrue(listener.received.get() == 1);
-        logger.info("!!!!!ACCESS TOKEN " + listener.messageQ.take().getValue().getStringProperty("kapua_access_token"));
+        Message message = listener.messageQ.take().getValue();
+        UUID token = UUID.fromString(message.getStringProperty(KapuaPlugin.ACCESS_TOKEN));
+        assertNotNull(token);
+        logger.info("Received access token: " + token);
+        String deviceId = message.getStringProperty(KapuaPlugin.DEVICE_ID);
+        assertEquals("kapua-device1", deviceId);
 
+        //TODO test wrong address
     }
+
+
+    // Helpers
 
     protected MqttClient connect(DefaultMqttListener listener) throws Exception {
         logger.info("Connecting");
