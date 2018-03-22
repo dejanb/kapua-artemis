@@ -17,9 +17,18 @@ import org.apache.activemq.artemis.api.core.SimpleString;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.transaction.Transaction;
+import org.apache.activemq.artemis.spi.core.security.jaas.PropertiesLoader;
+import org.apache.activemq.artemis.utils.HashProcessor;
+import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.jboss.logging.Logger;
 
+import javax.security.auth.login.FailedLoginException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 public class KapuaPlugin implements ActiveMQServerPlugin {
 
@@ -30,6 +39,15 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
 
     public static String ACCESS_TOKEN = "kapua-access-token";
     public static String DEVICE_ID = "device-id";
+
+    private Properties users = new Properties();
+    private Map<String, Set<String>> roles = new HashMap<String, Set<String>>();
+
+    public KapuaPlugin() {
+        //TODO load from the file
+        users.put("admin", "admin");
+        roles.put("admin", Collections.singleton("default-tenant"));
+    }
 
     /**
      *
@@ -50,10 +68,24 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
                 session.addMetaData(DEVICE_ID, session.getRemotingConnection().getClientID());
                 deviceConnectionService.connect(clientId, session.getRemotingConnection().getRemoteAddress(), session.getRemotingConnection().getProtocolName());
             } else {
-                logger.info("Skipping authentication for non-mqtt connections: " + session.getRemotingConnection().getProtocolName());
+                // cloud authentication
+                String user = session.getUsername();
+                String password = users.getProperty(user);
+
+                if (password == null) {
+                    throw new FailedLoginException("Cloud user does not exist: " + user);
+                }
+
+                HashProcessor hashProcessor = PasswordMaskingUtil.getHashProcessor(password);
+
+                if (!hashProcessor.compare(session.getPassword().toCharArray(), password)) {
+                    throw new FailedLoginException("Password does not match for cloud user: " + user);
+                }
+
+                //TODO add authorization
             }
         } catch (Exception e) {
-            logger.warn("Error connecting a device", e);
+            logger.warn("Error creating a broker session", e);
             throw new ActiveMQException("Error connecting a device", e, ActiveMQExceptionType.DISCONNECTED);
         }
     }

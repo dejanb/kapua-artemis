@@ -14,6 +14,7 @@ package org.eclipse.kapua;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager;
+import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 import org.apache.qpid.jms.JmsConnectionFactory;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -33,7 +34,10 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
 import javax.jms.Session;
+import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.UUID;
@@ -49,11 +53,14 @@ public class MQTTTest {
 
     private ActiveMQServer broker;
 
-
     @Before
     public void before() throws Exception {
-        broker = ActiveMQServers.newActiveMQServer("file:src/etc/broker.xml", ManagementFactory.getPlatformMBeanServer(), new ActiveMQJAASSecurityManager("kapua"));
-        //TODO figure out how to set proper JAAS plugin
+        //TODO try to implement cloud security using security manager (after Artemis changes)
+        System.setProperty("java.security.auth.login.config", "src/test/resources/login.config");
+        ActiveMQJAASSecurityManager sec = new ActiveMQJAASSecurityManager("kapua");
+
+
+        broker = ActiveMQServers.newActiveMQServer("file:src/etc/broker.xml", ManagementFactory.getPlatformMBeanServer(), sec);
         broker.getConfiguration().setSecurityEnabled(false);
         broker.start();
         Thread.sleep(3000);
@@ -64,6 +71,7 @@ public class MQTTTest {
         broker.stop();
     }
 
+    //TODO collocate tests
     @Test
     public void testDeviceConnect() throws Exception {
         DefaultMqttListener listener = new DefaultMqttListener();
@@ -125,6 +133,28 @@ public class MQTTTest {
 
         assertFalse(client.isConnected());
         assertEquals(0, DeviceConnectionService.getInstance().getConnectedDevices().size());
+    }
+
+    @Test
+    public void testCloudAuthentication() throws Exception {
+        JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:5672?jms.validatePropertyNames=false");
+        Connection connection = cf.createConnection("admin", "admin");
+        connection.start();
+
+        Connection connection1 = cf.createConnection("unknown", "unknown");
+        boolean failed = false;
+        try {
+            connection1.start();
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        if (!failed) {
+            fail("Should have failed");
+        }
+
+        //TODO add authorization test
+
     }
 
     //test send to the wrong path
