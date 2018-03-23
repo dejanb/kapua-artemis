@@ -138,8 +138,6 @@ public class MQTTTest {
     @Test
     public void testCloudAuthentication() throws Exception {
         JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:5672?jms.validatePropertyNames=false");
-        Connection connection = cf.createConnection("admin", "admin");
-        connection.start();
 
         Connection connection1 = cf.createConnection("unknown", "unknown");
         boolean failed = false;
@@ -153,7 +151,23 @@ public class MQTTTest {
             fail("Should have failed");
         }
 
-        //TODO add authorization test
+        Connection connection = cf.createConnection("default-tenant", "admin");
+        connection.start();
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        failed = false;
+        try {
+            //TODO check create address
+            session.createConsumer(session.createTopic("telemetry/unknown-tenant"));
+        } catch (Exception e) {
+            failed = true;
+        }
+
+        if (!failed) {
+            fail("Should have failed");
+        }
+
+        MessageConsumer consumer = session.createConsumer(session.createTopic("telemetry/default-tenant"));
 
     }
 
@@ -161,37 +175,20 @@ public class MQTTTest {
 
     //test c&c
 
-    //test jms auth
-
-/*    @Test
-    public void testSendMqttToMqtt() throws Exception {
-
-        DefaultMqttListener listener = new DefaultMqttListener();
-        MqttClient client = connect(listener);
-
-        client.subscribe("telemetry/DEFAULT_TENANT");
-
-        client.publish("t/DEFAULT_TENANT/kapua-device1", "Test".getBytes(), 0, false);
-
-        Thread.sleep(1000);
-        Assert.assertTrue(listener.received.get() == 1);
-
-    }*/
-
     @Test
     public void testTelemetry() throws Exception {
 
         JmsConnectionFactory cf = new JmsConnectionFactory("amqp://localhost:5672?jms.validatePropertyNames=false");
-        Connection connection = cf.createConnection("admin", "admin");
+        Connection connection = cf.createConnection("default-tenant", "admin");
         connection.start();
         Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         //TODO use "telemetry/DEFAULT_TENANT" address
-        MessageConsumer consumer = session.createConsumer(session.createTopic("t/DEFAULT_TENANT/kapua-device1"));
+        MessageConsumer consumer = session.createConsumer(session.createTopic("t/default-tenant/kapua-device1"));
         DefaultJmsListener listener = new DefaultJmsListener();
         consumer.setMessageListener(listener);
 
         MqttClient client = connect(null);
-        client.publish("t/DEFAULT_TENANT/kapua-device1", "Test".getBytes(), 0, false);
+        client.publish("t/default-tenant/kapua-device1", "Test".getBytes(), 0, false);
 
         Thread.sleep(1000);
 

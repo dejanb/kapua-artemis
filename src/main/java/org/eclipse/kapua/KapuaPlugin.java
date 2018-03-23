@@ -14,18 +14,25 @@ import org.apache.activemq.artemis.api.core.ActiveMQException;
 import org.apache.activemq.artemis.api.core.ActiveMQExceptionType;
 import org.apache.activemq.artemis.api.core.Message;
 import org.apache.activemq.artemis.api.core.SimpleString;
+import org.apache.activemq.artemis.core.postoffice.QueueBinding;
+import org.apache.activemq.artemis.core.server.ServerConsumer;
 import org.apache.activemq.artemis.core.server.ServerSession;
 import org.apache.activemq.artemis.core.server.plugin.ActiveMQServerPlugin;
 import org.apache.activemq.artemis.core.transaction.Transaction;
 import org.apache.activemq.artemis.spi.core.security.jaas.PropertiesLoader;
+import org.apache.activemq.artemis.spi.core.security.jaas.RolePrincipal;
+import org.apache.activemq.artemis.spi.core.security.jaas.UserPrincipal;
 import org.apache.activemq.artemis.utils.HashProcessor;
 import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
 import org.jboss.logging.Logger;
+import sun.java2d.pipe.SpanShapeRenderer;
 
 import javax.security.auth.login.FailedLoginException;
+import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -43,10 +50,12 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
     private Properties users = new Properties();
     private Map<String, Set<String>> roles = new HashMap<String, Set<String>>();
 
+    //TODO concurrency?
+    private Map<String, ServerSession> sessions = new HashMap<String, ServerSession>();
+
     public KapuaPlugin() {
         //TODO load from the file
-        users.put("admin", "admin");
-        roles.put("admin", Collections.singleton("default-tenant"));
+        users.put("default-tenant", "admin");
     }
 
     /**
@@ -81,9 +90,8 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
                 if (!hashProcessor.compare(session.getPassword().toCharArray(), password)) {
                     throw new FailedLoginException("Password does not match for cloud user: " + user);
                 }
-
-                //TODO add authorization
             }
+            sessions.put(session.getName(), session);
         } catch (Exception e) {
             logger.warn("Error creating a broker session", e);
             throw new ActiveMQException("Error connecting a device", e, ActiveMQExceptionType.DISCONNECTED);
@@ -126,5 +134,25 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
         } else {
             //TODO handle C2D flow (C&C, ...)
         }
+    }
+
+    public void afterCreateConsumer(ServerConsumer consumer) throws ActiveMQException {
+        ServerSession session = sessions.get(consumer.getSessionName());
+        if (session == null) {
+            throw new ActiveMQException("wrong session");
+        }
+
+        if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
+            //TODO handle devices
+        } else {
+            String[] addressTokens = consumer.getQueueAddress().toString().split("/");
+            if (addressTokens.length < 2) {
+                throw new ActiveMQException("Address is not properly formatted: " + consumer.getQueueAddress());
+            }
+            if (!(addressTokens[0].equals("telemetry") || addressTokens[0].equals("t")) || !addressTokens[1].equals(session.getUsername())) {
+                throw new ActiveMQException("Tenant " + session.getUsername() + " not allowed to consume from " + consumer.getQueueAddress());
+            }
+        }
+
     }
 }
