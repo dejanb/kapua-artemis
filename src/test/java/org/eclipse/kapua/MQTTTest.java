@@ -185,8 +185,16 @@ public class MQTTTest {
 
         MqttClient client = connect(null);
         client.publish("t/default-tenant/kapua-device1", "Test".getBytes(), 0, false);
-
         Thread.sleep(1000);
+        assertTrue(client.isConnected());
+        client.publish("random-topic", "Test".getBytes(), 0, false);
+        Thread.sleep(1000);
+        assertFalse(client.isConnected());
+        client = connect(null);
+        client.publish("t/unknown-tenant/kapua-device1", "Test".getBytes(), 0, false);
+        Thread.sleep(1000);
+        assertFalse(client.isConnected());
+
 
         Assert.assertTrue(listener.received.get() == 1);
         Message message = listener.messageQ.take().getValue();

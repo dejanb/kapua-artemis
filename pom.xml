@@ -66,6 +66,11 @@
             <artifactId>junit</artifactId>
             <version>RELEASE</version>
         </dependency>
+        <dependency>
+            <groupId>org.eclipse.hono</groupId>
+            <artifactId>hono-core</artifactId>
+            <version>0.6-M2-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 
     <build>

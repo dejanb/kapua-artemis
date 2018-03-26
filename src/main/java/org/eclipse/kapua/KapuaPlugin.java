@@ -24,6 +24,8 @@ import org.apache.activemq.artemis.spi.core.security.jaas.RolePrincipal;
 import org.apache.activemq.artemis.spi.core.security.jaas.UserPrincipal;
 import org.apache.activemq.artemis.utils.HashProcessor;
 import org.apache.activemq.artemis.utils.PasswordMaskingUtil;
+import org.eclipse.hono.util.EndpointType;
+import org.eclipse.hono.util.ResourceIdentifier;
 import org.jboss.logging.Logger;
 import sun.java2d.pipe.SpanShapeRenderer;
 
@@ -116,21 +118,22 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
     public void beforeSend(ServerSession session, Transaction tx, Message message, boolean direct, boolean noAutoCreateQueue) throws ActiveMQException {
         logger.info("sending " + session.getMetaData(ACCESS_TOKEN) + " " + session.getRemotingConnection().getClientID());
         if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
-            String[] addressTokens = message.getAddress().split("/");
-            if (addressTokens.length != 3) {
-                throw new ActiveMQException("Address is not properly formatted: " + message.getAddress());
+            ResourceIdentifier topic = ResourceIdentifier.fromString(message.getAddress());
+
+            switch(EndpointType.fromString(topic.getEndpoint())) {
+                case TELEMETRY:
+                    if (!topic.getTenantId().equals(session.getMetaData(TENANT_ID))) {
+                        throw new ActiveMQException("Device is not allowed to send to for tenant: " + topic.getTenantId());
+                    }
+                    if (!topic.getResourceId().equals(session.getMetaData(DEVICE_ID))) {
+                        throw new ActiveMQException("Device is not allowed to send to: " + message.getAddress());
+                    }
+                    message.setAddress("telemetry/" + session.getMetaData(TENANT_ID));
+                    break;
+                default:
+                    //TODO handle other flows (events, alerts, ...)
+                    throw new ActiveMQException("Unsupported endpoint: " + topic.getEndpoint());
             }
-            // telemetry
-            if (addressTokens[0].equals("t")) {
-                if (!addressTokens[1].equals(session.getMetaData(TENANT_ID))) {
-                    throw new ActiveMQException("Device is not allowed to send to for tenant: " + addressTokens[1]);
-                }
-                if (!addressTokens[2].equals(session.getMetaData(DEVICE_ID))) {
-                    throw new ActiveMQException("Device is not allowed to send to: " + message.getAddress());
-                }
-                message.setAddress("telemetry/" + session.getMetaData(TENANT_ID));
-            }
-            //TODO handle other flows (events, alerts, ...)
 
             message.setAnnotation(new SimpleString(TENANT_ID), session.getMetaData(TENANT_ID));
             message.setAnnotation(new SimpleString(ACCESS_TOKEN), session.getMetaData(ACCESS_TOKEN));
