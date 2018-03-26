@@ -146,18 +146,22 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
     public void afterCreateConsumer(ServerConsumer consumer) throws ActiveMQException {
         ServerSession session = sessions.get(consumer.getSessionName());
         if (session == null) {
-            throw new ActiveMQException("wrong session");
+            throw new ActiveMQException("Wrong session");
         }
 
         if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
             //TODO handle devices
         } else {
-            String[] addressTokens = consumer.getQueueAddress().toString().split("/");
-            if (addressTokens.length < 2) {
-                throw new ActiveMQException("Address is not properly formatted: " + consumer.getQueueAddress());
-            }
-            if (!(addressTokens[0].equals("telemetry") || addressTokens[0].equals("t")) || !addressTokens[1].equals(session.getUsername())) {
-                throw new ActiveMQException("Tenant " + session.getUsername() + " not allowed to consume from " + consumer.getQueueAddress());
+            ResourceIdentifier topic = ResourceIdentifier.fromString(consumer.getQueueAddress().toString());
+
+            switch(EndpointType.fromString(topic.getEndpoint())) {
+                case TELEMETRY:
+                    if (!topic.getTenantId().equals(session.getUsername())) {
+                        throw new ActiveMQException("Tenant " + session.getUsername() + " not allowed to consume from " + consumer.getQueueAddress());
+                    }
+                    break;
+                default:
+                    throw new ActiveMQException("Address is not properly formatted: " + consumer.getQueueAddress());
             }
         }
 
