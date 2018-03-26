@@ -14,7 +14,6 @@ package org.eclipse.kapua;
 import org.apache.activemq.artemis.core.server.ActiveMQServer;
 import org.apache.activemq.artemis.core.server.ActiveMQServers;
 import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager;
-import org.apache.activemq.artemis.spi.core.security.ActiveMQSecurityManager;
 import org.apache.qpid.jms.JmsConnectionFactory;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
@@ -34,15 +33,13 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.MessageListener;
 import javax.jms.Session;
-import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
-import java.net.URL;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -63,7 +60,7 @@ public class MQTTTest {
         broker = ActiveMQServers.newActiveMQServer("file:src/etc/broker.xml", ManagementFactory.getPlatformMBeanServer(), sec);
         broker.getConfiguration().setSecurityEnabled(false);
         broker.start();
-        Thread.sleep(3000);
+        broker.waitForActivation(3, TimeUnit.SECONDS);
     }
 
     @After
@@ -182,8 +179,7 @@ public class MQTTTest {
         Connection connection = cf.createConnection("default-tenant", "admin");
         connection.start();
         Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        //TODO use "telemetry/DEFAULT_TENANT" address
-        MessageConsumer consumer = session.createConsumer(session.createTopic("t/default-tenant/kapua-device1"));
+        MessageConsumer consumer = session.createConsumer(session.createTopic("telemetry/default-tenant"));
         DefaultJmsListener listener = new DefaultJmsListener();
         consumer.setMessageListener(listener);
 

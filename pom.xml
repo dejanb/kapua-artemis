@@ -85,41 +85,5 @@
         </pluginManagement>
     </build>
 
-    <profiles>
-        <profile>
-            <id>apache-artemis-test</id>
-            <repositories>
-
-                <repository>
-                    <id>artemis-test</id>
-                    <name>Apache Artemis Test</name>
-                    <url>https://repository.apache.org/content/repositories/orgapacheactivemq-1156</url>
-                    <layout>default</layout>
-                    <releases>
-                        <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
-                </repository>
-            </repositories>
-
-            <pluginRepositories>
-
-                <pluginRepository>
-                    <id>artemis-test2</id>
-                    <name>Apache Artemis Test</name>
-                    <url>https://repository.apache.org/content/repositories/orgapacheactivemq-1156</url>
-                    <releases>
-                        <enabled>true</enabled>
-                    </releases>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
-                </pluginRepository>
-            </pluginRepositories>
-        </profile>
-    </profiles>
-
 
 </project>

@@ -46,6 +46,7 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
 
     public static String ACCESS_TOKEN = "kapua-access-token";
     public static String DEVICE_ID = "device-id";
+    public static String TENANT_ID = "tenant-id";
 
     private Properties users = new Properties();
     private Map<String, Set<String>> roles = new HashMap<String, Set<String>>();
@@ -71,10 +72,12 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
         logger.debug("Created a session: " + session);
         try {
             if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
+                // device authentication
                 String accessToken = authenticationService.login(session.getUsername(), session.getPassword(), session.getRemotingConnection().getClientID());
                 logger.info("Device " + clientId + " authenticated ");
                 session.addMetaData(ACCESS_TOKEN, accessToken);
                 session.addMetaData(DEVICE_ID, session.getRemotingConnection().getClientID());
+                session.addMetaData(TENANT_ID, "default-tenant");
                 deviceConnectionService.connect(clientId, session.getRemotingConnection().getRemoteAddress(), session.getRemotingConnection().getProtocolName());
             } else {
                 // cloud authentication
@@ -114,21 +117,22 @@ public class KapuaPlugin implements ActiveMQServerPlugin {
         logger.info("sending " + session.getMetaData(ACCESS_TOKEN) + " " + session.getRemotingConnection().getClientID());
         if (session.getRemotingConnection().getProtocolName().equals("MQTT")) {
             String[] addressTokens = message.getAddress().split("/");
-            System.out.println(Arrays.asList(addressTokens));
             if (addressTokens.length != 3) {
                 throw new ActiveMQException("Address is not properly formatted: " + message.getAddress());
             }
             // telemetry
-            if (addressTokens[0] == "t") {
-                //TODO check tenant
-                if (addressTokens[2] != session.getMetaData(DEVICE_ID)) {
+            if (addressTokens[0].equals("t")) {
+                if (!addressTokens[1].equals(session.getMetaData(TENANT_ID))) {
+                    throw new ActiveMQException("Device is not allowed to send to for tenant: " + addressTokens[1]);
+                }
+                if (!addressTokens[2].equals(session.getMetaData(DEVICE_ID))) {
                     throw new ActiveMQException("Device is not allowed to send to: " + message.getAddress());
                 }
-                //TODO Routing
-                //message.setAddress("telemetry/DEFAULT_TENANT");
+                message.setAddress("telemetry/" + session.getMetaData(TENANT_ID));
             }
             //TODO handle other flows (events, alerts, ...)
 
+            message.setAnnotation(new SimpleString(TENANT_ID), session.getMetaData(TENANT_ID));
             message.setAnnotation(new SimpleString(ACCESS_TOKEN), session.getMetaData(ACCESS_TOKEN));
             message.setAnnotation(new SimpleString(DEVICE_ID), session.getMetaData(DEVICE_ID));
         } else {
