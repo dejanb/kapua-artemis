@@ -28,11 +28,12 @@ import java.net.HttpURLConnection;
 public class KapuaCredentialsClient implements CredentialsClient {
 
     CredentialsService credentialsService;
-    String tenant = "kapua-sys";
+    String tenantId = "kapua-sys";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    public KapuaCredentialsClient() {
+    public KapuaCredentialsClient(String tenantId) {
+        this.tenantId = tenantId;
         credentialsService = new KapuaCredentialsService();
     }
 
@@ -45,7 +46,7 @@ public class KapuaCredentialsClient implements CredentialsClient {
     public Future<CredentialsObject> get(String type, String authId, JsonObject clientContext) {
         final Future<CredentialsResult<JsonObject>> result = Future.future();
 
-        credentialsService.get(tenant, type, authId, clientContext, result.completer());
+        credentialsService.get(tenantId, type, authId, clientContext, result.completer());
         return result.map(response -> {
             switch(response.getStatus()) {
                 case HttpURLConnection.HTTP_OK:

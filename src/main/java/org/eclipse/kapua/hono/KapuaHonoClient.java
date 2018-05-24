@@ -92,14 +92,18 @@ public class KapuaHonoClient implements HonoClient {
 
     @Override
     public Future<RegistrationClient> getOrCreateRegistrationClient(String tenantId) {
-        return null;
+        Objects.requireNonNull(tenantId);
+        final Future<RegistrationClient> result = Future.future();
+        result.complete(new KapuaRegistrationClient(tenantId));
+
+        return result;
     }
 
     @Override
     public Future<CredentialsClient> getOrCreateCredentialsClient(String tenantId) {
         Objects.requireNonNull(tenantId);
         final Future<CredentialsClient> result = Future.future();
-        result.complete(new KapuaCredentialsClient());
+        result.complete(new KapuaCredentialsClient(tenantId));
 
         return result;
     }

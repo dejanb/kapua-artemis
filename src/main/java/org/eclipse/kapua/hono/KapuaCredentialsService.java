@@ -86,7 +86,7 @@ public class KapuaCredentialsService extends BaseCredentialsService<Object> {
             result = result.addSecret(secret);
 
         } catch (KapuaException ke) {
-            //ke.printStackTrace();
+            //TODO add logging
             resultHandler.handle(Future.succeededFuture(CredentialsResult.from(HttpURLConnection.HTTP_INTERNAL_ERROR)));
             return;
         }
