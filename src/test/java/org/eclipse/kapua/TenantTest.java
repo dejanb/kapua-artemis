@@ -10,28 +10,30 @@
  ******************************************************************************/
 package org.eclipse.kapua;
 
-import org.eclipse.hono.client.RegistrationClient;
-import org.eclipse.kapua.hono.KapuaRegistrationClient;
+import org.eclipse.hono.client.TenantClient;
+import org.eclipse.kapua.hono.KapuaTenantClient;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
-public class RegistrationTest extends TestBase {
+public class TenantTest {
 
     @Test
     public void testHonoRegistrationClient() throws Throwable {
-        RegistrationClient registrationClient = new KapuaRegistrationClient("test-tenant");
 
-        registrationClient.assertRegistration("test-device").map(
+        TenantClient tenantClient = new KapuaTenantClient();
+        tenantClient.get("test-tenant").map(
                 result -> {
-                    assertNotNull(result.getString("assertion"));
+                    assertEquals("test-tenant", result.getTenantId());
+                    assertTrue(result.isEnabled());
                     return result;
                 }
-        ).otherwise(error -> {
-            fail(error.getMessage());
-            return null;
-        });
-    }
+        ).otherwise(
+                error -> {
+                    fail(error.getMessage());
+                    return null;
+                }
+        );
 
+    }
 }

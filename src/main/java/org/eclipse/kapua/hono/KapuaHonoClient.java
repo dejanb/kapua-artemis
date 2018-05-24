@@ -110,7 +110,10 @@ public class KapuaHonoClient implements HonoClient {
 
     @Override
     public Future<TenantClient> getOrCreateTenantClient() {
-        return null;
+        final Future<TenantClient> result = Future.future();
+        result.complete(new KapuaTenantClient());
+
+        return result;
     }
 
     @Override

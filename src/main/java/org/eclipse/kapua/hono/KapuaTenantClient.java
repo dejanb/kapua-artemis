@@ -15,43 +15,56 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.JsonObject;
-import org.eclipse.hono.client.CredentialsClient;
 import org.eclipse.hono.client.ServiceInvocationException;
 import org.eclipse.hono.client.StatusCodeMapper;
-import org.eclipse.hono.service.credentials.CredentialsService;
+import org.eclipse.hono.client.TenantClient;
+import org.eclipse.hono.service.tenant.TenantService;
 import org.eclipse.hono.util.CredentialsObject;
-import org.eclipse.hono.util.CredentialsResult;
+import org.eclipse.hono.util.RegistrationResult;
+import org.eclipse.hono.util.TenantObject;
+import org.eclipse.hono.util.TenantResult;
 
+import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 
-public class KapuaCredentialsClient implements CredentialsClient {
+public class KapuaTenantClient implements TenantClient {
 
-    CredentialsService credentialsService;
-    String tenantId = "kapua-sys";
+    TenantService tenantService = new KapuaTenantService();
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    public KapuaCredentialsClient(String tenantId) {
-        this.tenantId = tenantId;
-        credentialsService = new KapuaCredentialsService();
-    }
-
     @Override
-    public Future<CredentialsObject> get(String type, String authId) {
-        return get(type, authId, new JsonObject());
-    }
+    public Future<TenantObject> get(String tenantId) {
+        final Future<TenantResult<JsonObject>> result = Future.future();
 
-    @Override
-    public Future<CredentialsObject> get(String type, String authId, JsonObject clientContext) {
-        final Future<CredentialsResult<JsonObject>> result = Future.future();
+        tenantService.get(tenantId, result.completer());
 
-        credentialsService.get(tenantId, type, authId, clientContext, result.completer());
         return result.map(response -> {
             switch(response.getStatus()) {
                 case HttpURLConnection.HTTP_OK:
                     try {
-                        return OBJECT_MAPPER.readValue(response.getPayload().toString(), CredentialsObject.class);
+                        return OBJECT_MAPPER.readValue(response.getPayload().toString(), TenantObject.class);
+                    } catch (IOException ioe) {
+                        throw new ServiceInvocationException(500);
+                    }
+                default:
+                    throw StatusCodeMapper.from(response);
+            }
+        });
+    }
+
+    @Override
+    public Future<TenantObject> get(X500Principal subjectDn) {
+        final Future<TenantResult<JsonObject>> result = Future.future();
+
+        tenantService.get(subjectDn, result.completer());
+
+        return result.map(response -> {
+            switch(response.getStatus()) {
+                case HttpURLConnection.HTTP_OK:
+                    try {
+                        return OBJECT_MAPPER.readValue(response.getPayload().toString(), TenantObject.class);
                     } catch (IOException ioe) {
                         throw new ServiceInvocationException(500);
                     }
@@ -68,7 +81,7 @@ public class KapuaCredentialsClient implements CredentialsClient {
 
     @Override
     public boolean isOpen() {
-        return true;
+        return false;
     }
 
     @Override

@@ -75,7 +75,7 @@ public class AuthenticationTest {
 
     @Test
     public void testHonoCredentialsClient() {
-        CredentialsClient credentialsClient = new KapuaCredentialsClient();
+        CredentialsClient credentialsClient = new KapuaCredentialsClient("kapua-sys");
         credentialsClient.get("password", "kapua-broker")
                 .map(result -> {
                     assertNotNull(result);
