@@ -74,13 +74,15 @@ public class KapuaCredentialsService extends BaseCredentialsService<Object> {
                 throw KapuaException.internalError("No account found for " + authId);
             }
 
-            //TODO device mapping
-            /* Device device = KapuaSecurityUtils.doPrivileged(() -> deviceRegistryService.findByClientId(user.getScopeId(), authId)); */
+            String clientId = clientContext.getString("clientId");
+            if (clientId == null)
+                clientId = authId;
 
             CredentialListResult credentials = KapuaSecurityUtils.doPrivileged(() -> credentialService.findByUserId(user.getScopeId(), user.getId()));
             Credential credential = credentials.getFirstItem();
 
-            result = new CredentialsObject(authId, authId, CredentialsConstants.SECRETS_TYPE_HASHED_PASSWORD);
+            result = new CredentialsObject(clientId, authId, CredentialsConstants.SECRETS_TYPE_HASHED_PASSWORD);
+            //TODO handle secret expiry
             final JsonObject secret = CredentialsObject.emptySecret(null, null);
             secret.put(CredentialsConstants.FIELD_SECRETS_KEY, credential.getCredentialKey());
             result = result.addSecret(secret);

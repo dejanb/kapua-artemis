@@ -10,13 +10,13 @@
  ******************************************************************************/
 package org.eclipse.kapua;
 
-import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.unit.Async;
+import io.vertx.ext.unit.TestContext;
+import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.eclipse.hono.client.CredentialsClient;
 import org.eclipse.hono.config.ServiceConfigProperties;
-import org.eclipse.hono.service.auth.device.Device;
 import org.eclipse.hono.service.auth.device.UsernamePasswordAuthProvider;
-import org.eclipse.hono.util.CredentialsResult;
 import org.eclipse.kapua.broker.core.BrokerJAXBContextProvider;
 import org.eclipse.kapua.commons.security.KapuaSecurityUtils;
 import org.eclipse.kapua.commons.util.xml.JAXBContextProvider;
@@ -26,7 +26,6 @@ import org.eclipse.kapua.hono.KapuaCredentialsClient;
 import org.eclipse.kapua.hono.KapuaCredentialsService;
 import org.eclipse.kapua.hono.KapuaHonoClient;
 import org.eclipse.kapua.locator.KapuaLocator;
-import org.eclipse.kapua.qa.steps.DBHelper;
 import org.eclipse.kapua.service.account.Account;
 import org.eclipse.kapua.service.account.AccountService;
 import org.eclipse.kapua.service.authentication.CredentialsFactory;
@@ -36,73 +35,51 @@ import org.eclipse.kapua.service.authentication.credential.CredentialService;
 import org.eclipse.kapua.service.authentication.token.AccessToken;
 import org.eclipse.kapua.service.user.User;
 import org.eclipse.kapua.service.user.UserService;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.net.HttpURLConnection;
 
 import static org.junit.Assert.*;
 
-public class AuthenticationTest {
-
-    private static final DBHelper database = new DBHelper();
-
-    @BeforeClass
-    public static void before() throws Exception {
-        database.setup();
-    }
-
-    @AfterClass
-    public static void after() throws Exception {
-        database.deleteAll();
-    }
+@RunWith(VertxUnitRunner.class)
+public class AuthenticationTest extends TestBase {
 
     @Test
-    public void testHonoAuthenticationProvider() {
+    public void testHonoAuthenticationProvider(final TestContext ctx) {
         UsernamePasswordAuthProvider authProvider = new UsernamePasswordAuthProvider(new KapuaHonoClient(), new ServiceConfigProperties());
-        final Future<Device> result = Future.future();
-        authProvider.authenticate(KapuaCredentials.create("kapua-broker@kapua-sys", "kapua-password", true), result.completer());
-        result.map(authenticatedDevice -> {
-            assertNotNull(authenticatedDevice);
-            assertEquals("kapua-broker", authenticatedDevice.getDeviceId());
-            return null;
-        }).otherwise(t -> {
-            fail("Failed to authenticate: " + t.getMessage());
-            return null;
-        });
+
+        final Async authenticate = ctx.async();
+        authProvider.authenticate(KapuaCredentials.create("kapua-broker@kapua-sys", "kapua-password", true), ctx.asyncAssertSuccess(authenticatedDevice -> {
+                    assertNotNull(authenticatedDevice);
+                    assertEquals("kapua-broker", authenticatedDevice.getDeviceId());
+                    authenticate.complete();
+                }
+        ));
     }
 
     @Test
-    public void testHonoCredentialsClient() {
+    public void testHonoCredentialsClient(final TestContext ctx) {
         CredentialsClient credentialsClient = new KapuaCredentialsClient("kapua-sys");
+        final Async get = ctx.async();
         credentialsClient.get("password", "kapua-broker")
-                .map(result -> {
+                .setHandler(ctx.asyncAssertSuccess(result -> {
                     assertNotNull(result);
                     assertEquals("kapua-broker", result.getDeviceId());
                     assertEquals(1, result.getSecrets().size());
-                    return result;
-                });
+                    get.complete();
+                }));
     }
 
     @Test
-    public void testHonoCredentialsService() {
+    public void testHonoCredentialsService(final TestContext ctx) {
         KapuaCredentialsService credentialsService = new KapuaCredentialsService();
         credentialsService.setConfig(null);
 
-        final Future<CredentialsResult<JsonObject>> result = Future.future();
-
-        credentialsService.get("kapua-sys", "password", "kapua-broker", new JsonObject(), result.completer());
-        result.map(response -> {
-            switch(response.getStatus()) {
-                case HttpURLConnection.HTTP_OK:
-                    assertEquals("kapua-broker", response.getPayload().getString("device-id"));
-                    return response.getPayload();
-                default:
-                    fail("Failed with response " + response.getStatus());
-                    return null;
-            }
-        });
+        credentialsService.get("kapua-sys", "password", "kapua-broker", new JsonObject().put("clientId", "my-device"), ctx.asyncAssertSuccess(response -> {
+            assertEquals(HttpURLConnection.HTTP_OK, response.getStatus());
+            assertEquals("my-device", response.getPayload().getString("device-id"));
+        }));
     }
 
     @Test

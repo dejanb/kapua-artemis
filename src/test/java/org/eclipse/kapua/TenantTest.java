@@ -10,18 +10,24 @@
  ******************************************************************************/
 package org.eclipse.kapua;
 
+import io.vertx.ext.unit.Async;
+import io.vertx.ext.unit.TestContext;
+import io.vertx.ext.unit.junit.VertxUnitRunner;
 import org.eclipse.hono.client.TenantClient;
 import org.eclipse.kapua.hono.KapuaTenantClient;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import static org.junit.Assert.*;
 
-public class TenantTest {
+@RunWith(VertxUnitRunner.class)
+public class TenantTest extends TestBase {
 
     @Test
-    public void testHonoRegistrationClient() throws Throwable {
-
+    public void testHonoRegistrationClient(final TestContext ctx) throws Throwable {
         TenantClient tenantClient = new KapuaTenantClient();
+
+        final Async get = ctx.async();
         tenantClient.get("test-tenant").map(
                 result -> {
                     assertEquals("test-tenant", result.getTenantId());
@@ -33,7 +39,7 @@ public class TenantTest {
                     fail(error.getMessage());
                     return null;
                 }
-        );
+        ).setHandler(ctx.asyncAssertSuccess(result -> get.complete()));
 
     }
 }
